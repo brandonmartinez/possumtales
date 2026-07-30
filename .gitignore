@@ -1,0 +1,21 @@
+# Never commit the WordPress dump or anything derived from it.
+*.sql
+*.sql.gz
+
+# Node
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.local
