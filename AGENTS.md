@@ -94,9 +94,18 @@ Result: 113 files, 3.05 MB.
   up through `tagSlug()` / `categorySlug()` in `src/lib/search.ts` rather than
   re-deriving them with `slugOf()` -- WordPress disambiguates collisions with a
   `-2` suffix, and a recomputed slug would silently stop matching.
-- `dist/404.html` is a byte-copy of `dist/index.html`. GitHub Pages serves it
-  for any unknown path, which boots the SPA, which renders the right page. This
-  is what makes a hard refresh on a deep permalink work. **Do not delete it.**
+- **Every route is prerendered to a real file** by `scripts/postbuild.mjs` --
+  `dist/<route>/index.html`, 1481 of them, each cloned from the built shell with
+  its own `<title>`, description, canonical and `og:*` tags. This is not an
+  optimisation. GitHub Pages answers an unknown path with `404.html` *and an
+  HTTP 404*; the app still booted and drew the right page, so it looked fine in
+  a browser while every permalink Joy ever published was formally "not found".
+  `vite preview` hides the bug because its SPA fallback answers 200 -- which is
+  why `verify.mjs` now asserts the *file* exists rather than trusting a live
+  request. The `/archives/` variants are prerendered too, so the client-side
+  redirect gets a chance to run.
+- `dist/404.html` is still the unmodified shell, for paths that are genuinely
+  unknown (a typo, a link to a post that never existed). **Do not delete it.**
 - `scripts/extract.mjs` fails the build if any internal `<a href="/...">` in a
   post body points at a page that does not exist.
 
@@ -184,7 +193,7 @@ scripts/
   lib/uploads.mjs        which image file a reference resolves to. Shared.
   copy-uploads.mjs       archive -> public/uploads/, with a size budget
   normalize-lockfile.mjs rewrites proxy registry URLs to registry.npmjs.org
-  postbuild.mjs          dist/404.html + sitemap.xml
+  postbuild.mjs          prerenders every route + 404.html + sitemap.xml
   verify.mjs             the acceptance checklist, as code
 src/
   data/*.json            generated, committed

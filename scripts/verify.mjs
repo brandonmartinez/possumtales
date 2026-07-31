@@ -245,12 +245,39 @@ const dist = join(root, 'dist');
 if (existsSync(dist)) {
   console.log('\nBuild output');
 
-  check('dist/404.html is the SPA fallback', () => {
+  check('dist/404.html still boots the app', () => {
     assert(existsSync(join(dist, '404.html')), 'dist/404.html is missing');
-    assert(
-      readFileSync(join(dist, '404.html'), 'utf8') === readFileSync(join(dist, 'index.html'), 'utf8'),
-      '404.html and index.html differ -- deep links will break on refresh'
-    );
+    const html = readFileSync(join(dist, '404.html'), 'utf8');
+    assert(html.includes('<div id="root">'), '404.html has no mount point');
+    assert(/<script[^>]+src="\/assets\//.test(html), '404.html does not load the bundle');
+  });
+
+  /*
+   * The reason this check exists: GitHub Pages answers an unknown path with
+   * 404.html AND an HTTP 404. The app booted and drew the right page, so it
+   * looked fine in a browser, but every permalink Joy published was formally
+   * "not found" -- and `vite preview` hides it, because its SPA fallback
+   * answers 200. Only a real file makes a real 200.
+   */
+  check('every permalink is a real prerendered file, not a 404 fallback', () => {
+    const shell = readFileSync(join(dist, '404.html'), 'utf8');
+    const routes = [
+      ...posts.map((p) => p.permalink),
+      ...posts.map((p) => `/archives${p.permalink}`),
+      '/about/',
+      ...meta.categories.map((c) => `/category/${c.slug}/`),
+      ...meta.tags.map((t) => `/tag/${t.slug}/`),
+      ...meta.speakers.map((s) => `/speaker/${s.slug}/`),
+    ];
+    const missing = routes.filter((r) => !existsSync(join(dist, r, 'index.html')));
+    assert(missing.length === 0, `${missing.length} routes have no file, e.g. ${missing[0]}`);
+    // A prerendered page that still carries the shell's metadata is a page that
+    // will preview as the site rather than as itself.
+    const generic = posts
+      .slice(0, 25)
+      .filter((p) => readFileSync(join(dist, p.permalink, 'index.html'), 'utf8') === shell);
+    assert(generic.length === 0, `${generic.length} posts kept the generic shell metadata`);
+    return `${routes.length + 1} routes, all prerendered`;
   });
 
   check('CNAME and robots survived the build', () => {

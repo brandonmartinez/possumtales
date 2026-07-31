@@ -16,7 +16,7 @@ npm run dev        # http://localhost:5173
 ```
 
 ```sh
-npm run build      # typecheck, bundle, 404.html fallback, sitemap
+npm run build      # typecheck, bundle, prerender every route, sitemap
 npm run preview    # serve dist/ on http://localhost:4173
 npm run verify     # 23 acceptance checks (more of them if preview is running)
 ```
