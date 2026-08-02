@@ -253,6 +253,27 @@
   margin-top: 0.4rem;
 }
 
+/*
+ * Commentary from this archive rather than from Joy. It has to be legible as a
+ * different voice without turning into a content warning banner -- the quote is
+ * still the point of the card. A rule on the left is enough.
+ */
+.card-note {
+  margin-top: 0.75rem;
+  border-left: 2px solid var(--color-faint);
+  padding-left: 0.6rem;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #8a8a8a;
+  text-wrap: pretty;
+}
+
+.card-note em {
+  font-style: normal;
+  font-weight: 600;
+  color: #6f6f6f;
+}
+
 .card-tags {
   margin-top: 1rem;
   border-top: 1px dashed var(--color-faint);

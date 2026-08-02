@@ -28,6 +28,12 @@ export interface Post {
   context: string | null;
   /** Trailing prose after the quote -- usually a "See <other post>" link. */
   note?: string;
+  /**
+   * Commentary added by this archive, not by Joy. Rendered distinctly from
+   * `note` so the site's voice is never mistaken for hers. Set in the
+   * editorial pass in scripts/extract.mjs.
+   */
+  editorNote?: string;
   /** True when no quote could be parsed; `html` is the whole story. */
   unparsed?: boolean;
   categories: string[];

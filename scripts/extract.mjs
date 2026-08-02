@@ -46,6 +46,10 @@ const EXPECT = {
   tags: 665,
   categories: { Quotes: 285, 'Old Quotes': 35, Photos: 33, Videos: 4, Stories: 3, Uncategorized: 1 },
   peakYear: { year: '2010', count: 151 },
+  // The editorial pass is an allow-list, not a filter. If a word is added or a
+  // post is re-parsed into a different shape these counts move and the build
+  // stops, rather than quietly censoring something nobody reviewed.
+  censored: { masked: 18, rewritten: 4, noted: 1 },
 };
 
 const problems = [];
@@ -307,6 +311,106 @@ function texturizeRun(text) {
 /** Same, but leaves tags and attribute values alone. */
 const texturizeHtml = (html) =>
   html.replace(/(<[^>]*>)|([^<]+)/g, (_, tag, text) => (tag ? tag : texturize(text)));
+
+/*
+ * Editorial pass.
+ *
+ * Joy published these quotes verbatim and the archive is meant to be faithful,
+ * but a handful of them read differently on a public URL than they did on a
+ * WordPress blog in 2009. There are exactly three interventions, and they are
+ * all declared here so the gap between what the database holds and what the
+ * site shows is never a mystery:
+ *
+ *   MASKED       a light asterisk on the strongest words. The word stays
+ *                legible -- this is a fig leaf, not redaction.
+ *   REWRITES     "Retard from school" was the byline Joy gave a classmate, and
+ *                two of her setup lines used the word as well. Rewritten to
+ *                "Horizons", after the special-needs classroom: the joke still
+ *                lands for anyone who was there, the slur does not.
+ *   EDITOR_NOTES one quote uses a racial slur as the regional name for a Brazil
+ *                nut. Masking it would tidy the surface and leave the thing
+ *                itself untouched, so the words stand and a note sits below.
+ *
+ * Deliberately NOT censored: hell, dammit, crap, poop, butt, sexy and the rest
+ * of the mild end, plus "pussywillows" (a plant) and "Don't Be Gay" (a line
+ * from The Sweetest Thing, not a family member).
+ *
+ * Nothing here touches `post.slug`, `permalink`, or a term's WordPress slug --
+ * every historical URL still resolves (AGENTS.md rule 4). Tag *display* names
+ * are censored; the slugs behind them are not.
+ */
+const MASKED = [
+  { stem: 'fuck', mask: 'f*ck', inflected: true },
+  { stem: 'shit', mask: 'sh*t', inflected: true },
+  { stem: 'bitch', mask: 'b*tch', inflected: true },
+  { stem: 'piss', mask: 'p*ss', inflected: true },
+  { stem: 'dick', mask: 'd*ck', inflected: true },
+  // Whole word only, or it reaches into "assume", "passage", "glass".
+  { stem: 'ass', mask: 'a*s', inflected: false },
+];
+
+const MASK_RE = new RegExp(
+  `\\b(${MASKED.map((m) => (m.inflected ? `${m.stem}\\w*` : m.stem)).join('|')})\\b`,
+  'gi'
+);
+
+const REWRITES = [
+  [/Retard from school/gi, 'Horizons kid from school'],
+  [/\babout retards that\b/gi, 'about the Horizons kids that'],
+  [/\bretard abduction story\b/gi, 'Horizons abduction story'],
+];
+
+const TAG_RENAMES = new Map([['Retard', 'Horizons']]);
+
+const EDITOR_NOTES = new Map([
+  [
+    '/2014/01/02/the-nut-and-the-snaggle-tooth/',
+    '<p><em>A note from the archive:</em> the speaker is using an old regional ' +
+      'name for a Brazil nut. It is a racial slur, and it is left here unmasked ' +
+      'because this site reprints what people actually said rather than a ' +
+      'tidied-up version of it. Recording it is not endorsing it.</p>',
+  ],
+]);
+
+/** Words touched by the editorial pass, for the census. */
+const censored = { masked: new Set(), rewritten: new Set(), noted: new Set() };
+
+/** Mask a run of plain prose. Returns the input unchanged when nothing hits. */
+function mask(text, permalink) {
+  if (!text) return text;
+  return text.replace(MASK_RE, (word) => {
+    const entry = MASKED.find((m) => word.toLowerCase().startsWith(m.stem));
+    if (permalink) censored.masked.add(permalink);
+    const masked = entry.mask + word.slice(entry.stem.length);
+    return /^[A-Z]/.test(word) ? masked[0].toUpperCase() + masked.slice(1) : masked;
+  });
+}
+
+/** Same, but leaves tags and attribute values alone -- hrefs carry slugs. */
+const maskHtml = (html, permalink) =>
+  html.replace(/(<[^>]*>)|([^<]+)/g, (_, tag, text) => (tag ? tag : mask(text, permalink)));
+
+function rewrite(text, permalink) {
+  if (!text) return text;
+  let out = text;
+  for (const [pattern, replacement] of REWRITES) {
+    if (pattern.test(out)) {
+      if (permalink) censored.rewritten.add(permalink);
+      out = out.replace(pattern, replacement);
+    }
+    pattern.lastIndex = 0;
+  }
+  return out;
+}
+
+/** Both passes, for a plain-text field. */
+const edit = (text, permalink) => mask(rewrite(text, permalink), permalink);
+
+/** Both passes, for an html field. */
+const editHtml = (html, permalink) => maskHtml(rewrite(html, permalink), permalink);
+
+/** A tag's display name. Its slug is looked up from the original name. */
+const editTag = (name) => TAG_RENAMES.get(name) ?? mask(name);
 
 function permalinkFor(date, slug) {
   const [y, m, d] = date.slice(0, 10).split('-');
@@ -811,24 +915,30 @@ const posts = published
       parseFailures += 1;
       parseFailureIds.push(`${p.ID} ${slug} [${categories.join(', ')}]`);
     }
+    // The editorial pass runs over display text only; `slug` and `permalink`
+    // are built from the WordPress columns above and never see it.
+    const permalink = permalinkFor(date, slug);
     return {
       id: Number(p.ID),
       date,
-      title: texturize(decodeEntities(p.post_title)),
+      title: edit(texturize(decodeEntities(p.post_title)), permalink),
       slug,
-      permalink: permalinkFor(date, slug),
-      html: texturizeHtml(html),
-      quote: parsed.quote && texturize(parsed.quote),
-      speaker: parsed.speaker,
-      speakerRaw: parsed.speakerRaw,
-      ...(parsed.speakers.length > 1 ? { speakers: parsed.speakers } : {}),
-      context: parsed.context && texturize(parsed.context),
-      ...(parsed.quote && parsed.note
-        ? { note: texturizeHtml(wpautop(linkifyBareUrls(parsed.note))) }
+      permalink,
+      html: editHtml(texturizeHtml(html), permalink),
+      quote: parsed.quote && edit(texturize(parsed.quote), permalink),
+      speaker: parsed.speaker && edit(parsed.speaker, permalink),
+      speakerRaw: parsed.speakerRaw && edit(parsed.speakerRaw, permalink),
+      ...(parsed.speakers.length > 1
+        ? { speakers: parsed.speakers.map((s) => edit(s, permalink)) }
         : {}),
+      context: parsed.context && edit(texturize(parsed.context), permalink),
+      ...(parsed.quote && parsed.note
+        ? { note: editHtml(texturizeHtml(wpautop(linkifyBareUrls(parsed.note))), permalink) }
+        : {}),
+      ...(EDITOR_NOTES.has(permalink) ? { editorNote: EDITOR_NOTES.get(permalink) } : {}),
       ...(parsed.quote ? {} : { unparsed: true }),
       categories,
-      tags: terms.filter((t) => t.taxonomy === 'post_tag').map((t) => t.name),
+      tags: terms.filter((t) => t.taxonomy === 'post_tag').map((t) => editTag(t.name)),
       images: [...html.matchAll(/<img[^>]+src="([^"]+)"/g)].map((m) => m[1]),
       ...(media.length ? { media } : {}),
     };
@@ -843,6 +953,28 @@ console.log(
 );
 for (const id of parseFailureIds) console.log(`   - ${id}`);
 console.log(`Mojibake artifacts repaired: ${mojibakeFixed}`);
+
+/* -- editorial census ------------------------------------------------ */
+
+for (const p of posts) if (p.editorNote) censored.noted.add(p.permalink);
+
+console.log(
+  `\nEditorial pass: ${censored.masked.size} post(s) masked, ` +
+    `${censored.rewritten.size} rewritten, ${censored.noted.size} annotated`
+);
+for (const link of [...censored.masked].sort()) console.log(`   masked     ${link}`);
+for (const link of [...censored.rewritten].sort()) console.log(`   rewritten  ${link}`);
+for (const link of [...censored.noted].sort()) console.log(`   annotated  ${link}`);
+for (const [key, want] of Object.entries(EXPECT.censored)) {
+  const got = censored[key].size;
+  if (got !== want) {
+    fail(
+      `Editorial pass ${key} ${got} post(s), expected ${want}.\n` +
+        '      Someone changed MASKED/REWRITES/EDITOR_NOTES or the parse moved.\n' +
+        '      Review the list above, then update EXPECT.censored to match.'
+    );
+  }
+}
 console.log(
   `Embedded media: ${mediaTally.youtube} YouTube, ${mediaTally.link} outbound link(s), ${mediaTally.flash} dead Flash embed(s)`
 );
@@ -930,7 +1062,14 @@ const slugify = (s) =>
 
 // Prefer WordPress's own slugs so historical /tag/<slug>/ URLs keep working.
 const slugForTerm = new Map();
-for (const t of taxById.values()) slugForTerm.set(t.name, t.slug);
+for (const t of taxById.values()) {
+  slugForTerm.set(t.name, t.slug);
+  // A tag the editorial pass renamed is still the same tag underneath. Index
+  // it under its display name too, so "Horizons" resolves to /tag/retard/ and
+  // the URL Google has does not 404.
+  const shown = editTag(t.name);
+  if (shown !== t.name) slugForTerm.set(shown, t.slug);
+}
 const termSlug = (name) => slugForTerm.get(name) || slugify(name);
 
 const facet = (key) =>

@@ -179,6 +179,44 @@ Two traps if you edit it:
 - A `"` closes unless something else just ended before it. Four quotes are
   Janet Evanovich excerpts with dialogue inside the quote and depend on this.
 
+### 5b. The editorial pass is an allow-list, and it is display-only
+
+The archive is faithful, but a few 2009 quotes read differently on a public URL
+than they did on a WordPress blog. `scripts/extract.mjs` has one small
+**editorial pass** — declared in three tables near the other content helpers,
+so the gap between what the database holds and what the site shows is always
+readable in one place:
+
+- `MASKED` — a light asterisk on the strongest words (`sh*t`, `f*ck`, `b*tch`,
+  `p*ss`, `d*ck`, `a*s`). A fig leaf, not redaction; the word stays legible.
+- `REWRITES` — "Retard from school" was the byline Joy gave a classmate, and
+  two of her setup lines used the word too. Rewritten to "Horizons", after the
+  special-needs classroom.
+- `EDITOR_NOTES` — one quote uses a racial slur as the regional name for a
+  Brazil nut. Masking it would tidy the surface and leave the thing itself
+  alone, so the words stand and a note sits underneath. That note renders as
+  `post.editorNote` with `.card-note`, kept visually distinct from `post.note`,
+  which is Joy's own trailing prose. **Do not merge the two fields.**
+
+Three things this pass must never do:
+
+- **Touch a slug.** Not `post.slug`, not `permalink`, not a term's WordPress
+  slug. `/2010/04/27/shit-with-a-little-bow/` still resolves; only the title
+  displays as "Sh*t With a Little Bow". A renamed tag is re-indexed under its
+  display name in `slugForTerm`, so "Horizons" resolves to `/tag/retard/`.
+  (Speaker slugs are derived by this rebuild and were never WordPress URLs, so
+  `/speaker/horizons-kid-from-school/` replacing the old one breaks nothing.)
+- **Reach inside a tag or an attribute.** `maskHtml` skips markup the same way
+  `texturizeHtml` does, because an `href` carries a slug.
+- **Grow without being counted.** `EXPECT.censored` pins the pass at 18 masked
+  posts, 4 rewritten and 1 annotated. Change the tables and the build stops
+  until you update the count, so nothing is ever censored that nobody reviewed.
+
+Deliberately *not* censored, and it should stay that way without a decision:
+`hell`, `dammit`, `crap`, `poop`, `butt`, `sexy` and the rest of the mild end;
+"pussywillows" (a plant); and "Don't Be Gay" (a line from *The Sweetest Thing*,
+not a family member).
+
 ### 6. Tailwind v4, not v3
 
 There is no `tailwind.config.js`. The entry CSS is `@import "tailwindcss";` and

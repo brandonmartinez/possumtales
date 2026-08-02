@@ -58,6 +58,9 @@ export function PostCard({ post, full = false }: { post: Post; full?: boolean })
         {/* "See <other post>." -- Joy cross-linked her own quotes constantly. */}
         {post.note ? <PostBody html={post.note} className="card-aside" /> : null}
 
+        {/* The archive's own voice, not Joy's. Set apart so the two never blur. */}
+        {post.editorNote ? <PostBody html={post.editorNote} className="card-note" /> : null}
+
         {/* Photos, Stories and the one announcement post have no parsed quote,
             so their original markup is the post. */}
         {!post.quote ? <PostBody html={post.html} className="mt-3 text-[14px]" /> : null}
