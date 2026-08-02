@@ -189,26 +189,35 @@ readable in one place:
 
 - `MASKED` — a light asterisk on the strongest words (`sh*t`, `f*ck`, `b*tch`,
   `p*ss`, `d*ck`, `a*s`). A fig leaf, not redaction; the word stays legible.
+  The one exception is the racial slur below, masked harder as `n****r` — the
+  others are words somebody swore with, and that one is not.
 - `REWRITES` — "Retard from school" was the byline Joy gave a classmate, and
   two of her setup lines used the word too. Rewritten to "Horizons", after the
   special-needs classroom.
 - `EDITOR_NOTES` — one quote uses a racial slur as the regional name for a
-  Brazil nut. Masking it would tidy the surface and leave the thing itself
-  alone, so the words stand and a note sits underneath. That note renders as
-  `post.editorNote` with `.card-note`, kept visually distinct from `post.note`,
-  which is Joy's own trailing prose. **Do not merge the two fields.**
+  Brazil nut. A mask on its own would tidy the surface and explain nothing, so
+  that post is masked *and* annotated. The note renders as `post.editorNote`
+  with `.card-note`, kept visually distinct from `post.note`, which is Joy's
+  own trailing prose. **Do not merge the two fields.**
 
 Three things this pass must never do:
 
 - **Touch a slug.** Not `post.slug`, not `permalink`, not a term's WordPress
   slug. `/2010/04/27/shit-with-a-little-bow/` still resolves; only the title
-  displays as "Sh*t With a Little Bow". A renamed tag is re-indexed under its
-  display name in `slugForTerm`, so "Horizons" resolves to `/tag/retard/`.
+  displays as "Sh*t With a Little Bow". A *masked* tag is re-indexed under its
+  display name in `slugForTerm`, so `/tag/shit/` still resolves while the
+  sidebar reads "Sh*t".
   (Speaker slugs are derived by this rebuild and were never WordPress URLs, so
   `/speaker/horizons-kid-from-school/` replacing the old one breaks nothing.)
+
+  The **one exception**, made deliberately: a *renamed* tag does not inherit
+  its old slug. `/tag/retard/` is gone rather than redirected, because a
+  redirect would have kept the slur alive in a URL — which is the thing the
+  rename existed to remove. `/tag/horizons/` is the only way in. That is a
+  knowing rule-4 violation, worth one inbound link on a four-post tag.
 - **Reach inside a tag or an attribute.** `maskHtml` skips markup the same way
   `texturizeHtml` does, because an `href` carries a slug.
-- **Grow without being counted.** `EXPECT.censored` pins the pass at 18 masked
+- **Grow without being counted.** `EXPECT.censored` pins the pass at 19 masked
   posts, 4 rewritten and 1 annotated. Change the tables and the build stops
   until you update the count, so nothing is ever censored that nobody reviewed.
 

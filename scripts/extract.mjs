@@ -49,7 +49,7 @@ const EXPECT = {
   // The editorial pass is an allow-list, not a filter. If a word is added or a
   // post is re-parsed into a different shape these counts move and the build
   // stops, rather than quietly censoring something nobody reviewed.
-  censored: { masked: 18, rewritten: 4, noted: 1 },
+  censored: { masked: 19, rewritten: 4, noted: 1 },
 };
 
 const problems = [];
@@ -328,8 +328,8 @@ const texturizeHtml = (html) =>
  *                "Horizons", after the special-needs classroom: the joke still
  *                lands for anyone who was there, the slur does not.
  *   EDITOR_NOTES one quote uses a racial slur as the regional name for a Brazil
- *                nut. Masking it would tidy the surface and leave the thing
- *                itself untouched, so the words stand and a note sits below.
+ *                nut. A mask alone would tidy the surface and explain nothing,
+ *                so that one is masked *and* carries a note underneath.
  *
  * Deliberately NOT censored: hell, dammit, crap, poop, butt, sexy and the rest
  * of the mild end, plus "pussywillows" (a plant) and "Don't Be Gay" (a line
@@ -345,6 +345,10 @@ const MASKED = [
   { stem: 'bitch', mask: 'b*tch', inflected: true },
   { stem: 'piss', mask: 'p*ss', inflected: true },
   { stem: 'dick', mask: 'd*ck', inflected: true },
+  // Masked more heavily than the rest. The others are words somebody swore
+  // with; this one is a slur, and it only needs to be recognisable enough that
+  // the note underneath makes sense.
+  { stem: 'nigger', mask: 'n****r', inflected: true },
   // Whole word only, or it reaches into "assume", "passage", "glass".
   { stem: 'ass', mask: 'a*s', inflected: false },
 ];
@@ -366,8 +370,8 @@ const EDITOR_NOTES = new Map([
   [
     '/2014/01/02/the-nut-and-the-snaggle-tooth/',
     '<p><em>A note from the archive:</em> the speaker is using an old regional ' +
-      'name for a Brazil nut. It is a racial slur, and it is left here unmasked ' +
-      'because this site reprints what people actually said rather than a ' +
+      'name for a Brazil nut. It is a racial slur, masked here. The quote is ' +
+      'kept because this site records what people actually said rather than a ' +
       'tidied-up version of it. Recording it is not endorsing it.</p>',
   ],
 ]);
@@ -1064,12 +1068,19 @@ const slugify = (s) =>
 const slugForTerm = new Map();
 for (const t of taxById.values()) {
   slugForTerm.set(t.name, t.slug);
-  // A tag the editorial pass renamed is still the same tag underneath. Index
-  // it under its display name too, so "Horizons" resolves to /tag/retard/ and
-  // the URL Google has does not 404.
-  const shown = editTag(t.name);
+  // A *masked* tag is the same tag with a fig leaf on it, so it keeps its
+  // slug and /tag/shit/ still resolves while the sidebar reads "Sh*t".
+  const shown = mask(t.name);
   if (shown !== t.name) slugForTerm.set(shown, t.slug);
 }
+/*
+ * A *renamed* tag (TAG_RENAMES) is the one deliberate exception to rule 4. It
+ * does not inherit the old slug: carrying it over would have kept the slur
+ * alive in a URL, which is the thing the rename existed to remove. "Horizons"
+ * misses the lookup and gets a fresh slug, so /tag/retard/ stops existing
+ * rather than redirecting. That costs one inbound link on a four-post tag,
+ * which is the right trade.
+ */
 const termSlug = (name) => slugForTerm.get(name) || slugify(name);
 
 const facet = (key) =>
